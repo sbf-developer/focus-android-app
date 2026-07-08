@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Focus</string>
+    <string name="vpn_notification_title">Focus blocking active</string>
+    <string name="vpn_notification_text">Distraction domains are blocked</string>
+    <string name="channel_vpn_name">Blocking</string>
+    <string name="channel_vpn_desc">Shown while domain blocking is active</string>
+    <string name="permission_usage_title">Usage access required</string>
+    <string name="permission_usage_body">Focus needs Usage Access to track app time. Tap to open Settings.</string>
+    <string name="permission_vpn_title">VPN permission required</string>
+    <string name="permission_vpn_body">Focus uses a local VPN to block distracting domains. Android will ask you to approve it when you turn blocking on.</string>
+    <string name="battery_opt_title">Battery optimization</string>
+    <string name="battery_opt_body">Some phones stop VPN services in the background. Allow Focus to run unrestricted for reliable blocking.</string>
+</resources>
