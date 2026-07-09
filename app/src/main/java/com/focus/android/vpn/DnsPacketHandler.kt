@@ -48,19 +48,31 @@ object DnsPacketHandler {
     }
 
     fun buildNxDomainResponse(query: DnsQuery): ByteArray {
+        return buildErrorResponse(query, rcode = 3)
+    }
+
+    fun buildServFailResponse(query: DnsQuery): ByteArray {
+        return buildErrorResponse(query, rcode = 2)
+    }
+
+    private fun buildErrorResponse(query: DnsQuery, rcode: Int): ByteArray {
         val response = query.rawQuery.copyOf()
         val buffer = ByteBuffer.wrap(response).order(ByteOrder.BIG_ENDIAN)
 
-        // Set QR=1 (response), RCODE=3 (NXDOMAIN)
+        // QR=1 (response), clear RCODE nibble then set code
         buffer.put(2, (buffer.get(2).toInt() or 0x80).toByte())
-        buffer.put(3, (buffer.get(3).toInt() or 0x03).toByte())
+        buffer.put(3, ((buffer.get(3).toInt() and 0xF0) or rcode).toByte())
 
-        // ANCOUNT, NSCOUNT, ARCOUNT = 0
         buffer.putShort(6, 0)
         buffer.putShort(8, 0)
         buffer.putShort(10, 0)
 
         return response
+    }
+
+    fun responseTransactionId(dnsResponse: ByteArray): Int? {
+        if (dnsResponse.size < 2) return null
+        return ((dnsResponse[0].toInt() and 0xFF) shl 8) or (dnsResponse[1].toInt() and 0xFF)
     }
 
     fun wrapDnsResponse(originalPacket: ByteArray, length: Int, dnsResponse: ByteArray): ByteArray {

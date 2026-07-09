@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -120,9 +122,6 @@ class FocusVpnService : VpnService() {
             val output = FileOutputStream(fd.fileDescriptor)
             val buffer = ByteArray(MTU)
 
-            val upstreamSocket = DatagramSocket()
-            protect(upstreamSocket)
-
             while (isActive && running.get()) {
                 try {
                     val length = input.read(buffer)
@@ -152,27 +151,14 @@ class FocusVpnService : VpnService() {
                         continue
                     }
 
-                    val forwardPacket = DnsPacketHandler.buildForwardPacket(packet, length)
-                    val dnsOffset = length - query.rawQuery.size
-                    val sendPacket = DatagramPacket(
-                        query.rawQuery,
-                        query.rawQuery.size,
-                        InetAddress.getByName(UPSTREAM_DNS),
-                        DNS_PORT,
-                    )
-                    upstreamSocket.send(sendPacket)
-
-                    val recvBuffer = ByteArray(MTU)
-                    val recvPacket = DatagramPacket(recvBuffer, recvBuffer.size)
-                    upstreamSocket.soTimeout = 3000
-                    try {
-                        upstreamSocket.receive(recvPacket)
-                        val dnsResponse = recvBuffer.copyOf(recvPacket.length)
+                    val dnsResponse = forwardDnsQuery(query)
+                    if (dnsResponse != null) {
                         val response = DnsPacketHandler.wrapDnsResponse(packet, length, dnsResponse)
                         output.write(response)
-                    } catch (_: Exception) {
-                        val nx = DnsPacketHandler.buildNxDomainResponse(query)
-                        val response = DnsPacketHandler.wrapDnsResponse(packet, length, nx)
+                    } else {
+                        Log.w(TAG, "Upstream DNS failed for allowed domain: $domain")
+                        val servFail = DnsPacketHandler.buildServFailResponse(query)
+                        val response = DnsPacketHandler.wrapDnsResponse(packet, length, servFail)
                         output.write(response)
                     }
                 } catch (e: Exception) {
@@ -182,9 +168,72 @@ class FocusVpnService : VpnService() {
                     }
                 }
             }
-
-            upstreamSocket.close()
         }
+    }
+
+    private fun forwardDnsQuery(query: DnsQuery): ByteArray? {
+        for (upstream in UPSTREAM_DNS_SERVERS) {
+            resolveViaUnderlyingNetworks(query, upstream)?.let { return it }
+            resolveViaProtectedSocket(query, upstream)?.let { return it }
+        }
+        return null
+    }
+
+    private fun resolveViaUnderlyingNetworks(query: DnsQuery, upstream: String): ByteArray? {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        for (network in cm.allNetworks) {
+            val caps = cm.getNetworkCapabilities(network) ?: continue
+            if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) continue
+            if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue
+
+            var socket: DatagramSocket? = null
+            try {
+                socket = DatagramSocket()
+                network.bindSocket(socket)
+                val response = exchangeDns(socket, query, upstream)
+                if (response != null) return response
+            } catch (e: Exception) {
+                Log.w(TAG, "DNS forward via network failed ($upstream)", e)
+            } finally {
+                socket?.close()
+            }
+        }
+        return null
+    }
+
+    private fun resolveViaProtectedSocket(query: DnsQuery, upstream: String): ByteArray? {
+        var socket: DatagramSocket? = null
+        try {
+            socket = DatagramSocket()
+            if (!protect(socket)) {
+                Log.e(TAG, "protect() failed for upstream DNS socket")
+            }
+            return exchangeDns(socket, query, upstream)
+        } catch (e: Exception) {
+            Log.w(TAG, "DNS forward via protected socket failed ($upstream)", e)
+            return null
+        } finally {
+            socket?.close()
+        }
+    }
+
+    private fun exchangeDns(socket: DatagramSocket, query: DnsQuery, upstream: String): ByteArray? {
+        socket.soTimeout = 5000
+        val sendPacket = DatagramPacket(
+            query.rawQuery,
+            query.rawQuery.size,
+            InetAddress.getByName(upstream),
+            DNS_PORT,
+        )
+        socket.send(sendPacket)
+
+        val recvBuffer = ByteArray(MTU)
+        val recvPacket = DatagramPacket(recvBuffer, recvBuffer.size)
+        socket.receive(recvPacket)
+
+        val response = recvBuffer.copyOf(recvPacket.length)
+        val txId = DnsPacketHandler.responseTransactionId(response)
+        return if (txId == query.transactionId) response else null
     }
 
     private fun startDomainTracking() {
@@ -257,7 +306,7 @@ class FocusVpnService : VpnService() {
         private const val NOTIFICATION_ID = 1
 
         private const val VPN_ADDRESS = "10.0.0.2"
-        private const val UPSTREAM_DNS = "8.8.8.8"
+        private val UPSTREAM_DNS_SERVERS = arrayOf("8.8.8.8", "1.1.1.1")
         private const val DNS_PORT = 53
         private const val MTU = 1500
 
