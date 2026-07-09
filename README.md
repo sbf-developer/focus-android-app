@@ -18,6 +18,18 @@ Block distracting domains system-wide via a local DNS VPN, and see how you spend
 - Physical device recommended for VPN and usage stats testing
 - USB debugging enabled for CLI install
 
+## Install on your phone (no PC cable)
+
+The repo doesn't ship a pre-built APK in git. Use a **GitHub Release** instead:
+
+1. On your phone, open: [github.com/sbf-developer/focus-android-app/releases](https://github.com/sbf-developer/focus-android-app/releases)
+2. Open the latest release → download **`app-debug.apk`**
+3. When Chrome/your browser finishes downloading, tap the file
+4. If Android blocks it: **Settings → Security → Install unknown apps** → allow your browser or Files app
+5. Tap **Install**, then open **Focus**
+
+**First release:** On GitHub (phone or PC), go to the repo → **Releases → Create a new release** → tag `v1.0.0` → **Publish release**. GitHub Actions builds the APK and attaches it automatically (~5 min).
+
 ## Open in Android Studio
 
 1. Open Android Studio (Ladybug or newer recommended).
