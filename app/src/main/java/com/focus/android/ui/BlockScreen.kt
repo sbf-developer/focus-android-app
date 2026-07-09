@@ -1,22 +1,28 @@
 package com.focus.android.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -97,26 +103,76 @@ fun BlockScreen(
             }
         }
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Row(
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggleBlocking(!status.blockingEnabled) },
+            colors = CardDefaults.cardColors(
+                containerColor = if (status.blockingEnabled) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+            ),
+        ) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Blocking", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = if (status.vpnRunning) "Active — ${status.blocklistCount} domains" else "Off",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Blocking", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = when {
+                                status.vpnRunning -> "Active — ${status.blocklistCount} domains blocked"
+                                status.blockingEnabled -> "Starting…"
+                                else -> "Off — tap below to enable"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = status.blockingEnabled,
+                        onCheckedChange = onToggleBlocking,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        ),
                     )
                 }
-                Switch(
-                    checked = status.blockingEnabled,
-                    onCheckedChange = onToggleBlocking,
-                )
+
+                if (status.blockingEnabled) {
+                    OutlinedButton(
+                        onClick = { onToggleBlocking(false) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                    ) {
+                        Text("Turn blocking off")
+                    }
+                } else {
+                    Button(
+                        onClick = { onToggleBlocking(true) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    ) {
+                        Text("Turn blocking on")
+                    }
+                }
             }
         }
 
